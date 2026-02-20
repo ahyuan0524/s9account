@@ -6,7 +6,7 @@ import { createSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 export default function AppHome() {
   const router = useRouter();
-  const supabase = useMemo(() => createSupabaseBrowser(true), []);
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(true);
