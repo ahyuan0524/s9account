@@ -57,9 +57,7 @@ function fmt2(n: number | null | undefined) {
   return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/**
- * ✅ 标准化 key
- */
+/** ✅ 标准化 key */
 function normKey(v: any) {
   return String(v ?? "")
     .trim()
@@ -67,9 +65,7 @@ function normKey(v: any) {
     .replace(/\s+/g, " ");
 }
 
-/**
- * ✅ 乘除规则（M=乘, D=除）
- */
+/** ✅ 乘除规则（M=乘, D=除） */
 function calcByMethod(amount: number, rate: number | null, method: Method): number | null {
   if (!method) return null;
   if (!Number.isFinite(amount)) return null;
@@ -103,7 +99,13 @@ function pickRowValue(row: any): string {
 
 export default function OrdersPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createSupabaseBrowser(), []);
+
+  /**
+   * ✅ 关键修复：Vercel build 报 “supabase possibly null”
+   * 让 TS 明确：这里一定会拿到 client
+   * 如果你的 createSupabaseBrowser() 真的可能返回 null，请把 createSupabaseBrowser 修到永远返回 client。
+   */
+  const supabase = useMemo(() => createSupabaseBrowser()!, []);
   const hotRef = useRef<HotTable>(null);
 
   const [prosyList, setProsyList] = useState<string[]>([]);
@@ -132,6 +134,9 @@ export default function OrdersPage() {
     let alive = true;
 
     async function loadSettings() {
+      // ✅ 保险（就算你上面用了 !，这里也不会坏）
+      if (!supabase) return;
+
       const p = await supabase.from("prosy_list").select("*").order("id", { ascending: true });
       const c = await supabase.from("currency_list").select("*").order("id", { ascending: true });
       const t = await supabase.from("type_list").select("*").order("id", { ascending: true });
@@ -398,7 +403,7 @@ export default function OrdersPage() {
         },
       },
     ];
-  }, [prosyList, currencyList, typeList, itemMethods]);
+  }, [prosyList, currencyList, typeList]);
 
   const colHeaders = useMemo(
     () => ["日期", "Prosy", "货币", "类型", "金额（上正下负）", "汇率（可空）", "MYR（RM才算）", "USDT（U才算）"],
@@ -457,15 +462,16 @@ export default function OrdersPage() {
   }
 
   /**
-   * ✅ 修复你截图错误：
-   * transactions 表里 prosy 是 NOT NULL
-   * 所以 insert 必须带 prosy（你现在带的 key/值不对才会变 null）
-   *
-   * ✅ 做法：同时写入两套字段名（prosy 与 prosy_code）
-   * 这样不管你 transactions 表是旧结构还是新结构，都能成功。
+   * ✅ 保存：避免 prosy null（transactions 表 prosy NOT NULL）
+   * ✅ 同时避免 “空行也插入”
    */
   async function onSave() {
     if (saving) return;
+    if (!supabase) {
+      alert("Supabase 未初始化（请确认 NEXT_PUBLIC_SUPABASE_URL / ANON_KEY 已配置）");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -497,7 +503,6 @@ export default function OrdersPage() {
         return;
       }
 
-      // ✅ 再严格检查一次，避免 NOT NULL 报错
       const bad = payload.find((x) => !x.prosy);
       if (bad) {
         alert(`第 ${bad.__idx} 行 Prosy 为空，不能保存。`);
@@ -507,52 +512,29 @@ export default function OrdersPage() {
       const u = await supabase.auth.getUser();
       const userId = u.data.user?.id ?? null;
 
-      /**
-       * ✅ 重点：同时写入旧字段与新字段
-       * - 旧表：prosy/currency/type
-       * - 新表：prosy_code/currency_code/type_code
-       *
-       * 这样你不需要先改数据库结构，也不会再出现 prosy 为 null 的错误。
-       */
+      // ✅ 先按你现有表结构插入（prosy NOT NULL）
       const insertRows = payload.map((x) => ({
         user_id: userId,
         date: x.date,
-
-        // 旧结构字段（你当前表必填的就是 prosy）
         prosy: x.prosy,
         currency: x.currency,
         type: x.type,
         amount: x.amount,
         rate: x.rate,
-
-        // 新结构字段（如果存在就会写入；不存在 Supabase 会报 column does not exist）
-        // 为了避免 “列不存在” 报错，我们下面用 try/catch 分两次 insert（先旧结构）
+        myr: x.myr,
+        usdt: x.usdt,
       }));
 
-      // ✅ 先按旧结构插入（你的表现在明确需要 prosy）
-      const res1 = await supabase.from("transactions").insert(insertRows);
+      const res = await supabase.from("transactions").insert(insertRows);
 
-      if (res1.error) {
-        alert(`保存失败：${res1.error.message}`);
+      if (res.error) {
+        alert(`保存失败：${res.error.message}`);
         return;
       }
 
-      // ✅ 如果你之后把表升级成 *_code 结构，再打开这段“补写 code 字段”
-      // （现在先不执行，避免列不存在导致失败）
-      // const insertRowsCode = payload.map((x) => ({
-      //   user_id: userId,
-      //   date: x.date,
-      //   prosy_code: x.prosy,
-      //   currency_code: x.currency,
-      //   type_code: x.type,
-      //   amount: x.amount,
-      //   rate: x.rate,
-      //   myr: x.myr,
-      //   usdt: x.usdt,
-      // }));
-      // await supabase.from("transactions").insert(insertRowsCode);
-
       router.push("/app/transactions");
+    } catch (e: any) {
+      alert(`保存失败：${e?.message || "未知错误"}`);
     } finally {
       setSaving(false);
     }
