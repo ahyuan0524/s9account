@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { HotTable } from "@handsontable/react";
+import { HotTable, type HottableClass } from "@handsontable/react"
 import Handsontable from "handsontable";
 import { registerAllModules } from "handsontable/registry";
 import "handsontable/dist/handsontable.full.min.css";
@@ -106,7 +106,7 @@ export default function OrdersPage() {
    * 如果你的 createSupabaseBrowser() 真的可能返回 null，请把 createSupabaseBrowser 修到永远返回 client。
    */
   const supabase = useMemo(() => createSupabaseBrowser()!, []);
-  const hotRef = useRef<HotTable>(null);
+  const hotRef = useRef<HotTableClass | null>(null);
 
   const [prosyList, setProsyList] = useState<string[]>([]);
   const [currencyList, setCurrencyList] = useState<string[]>([]);
@@ -453,8 +453,7 @@ export default function OrdersPage() {
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
     e.preventDefault();
 
-    // 🔥 关键修复：类型强制转换
-    const hot = (hotRef.current as any)?.hotInstance;
+    const hot = hotRef.current?.hotInstance;
     if (!hot) return;
 
     const sel = hot.getSelectedLast();
