@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { HotTable, type HottableClass } from "@handsontable/react"
+import { HotTable, type HotTableClass } from "@handsontable/react"
 import Handsontable from "handsontable";
 import { registerAllModules } from "handsontable/registry";
 import "handsontable/dist/handsontable.full.min.css";
