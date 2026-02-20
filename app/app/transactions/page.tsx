@@ -49,7 +49,7 @@ function calcMYRUSDT(tx: TxRow) {
 }
 
 export default function TransactionsPage() {
-  const supabase = useMemo(() => createSupabaseBrowser(true), [])
+  const supabase = useMemo(() => createSupabaseBrowser(), [])
 
   const [prosyOptions, setProsyOptions] = useState<string[]>([])
   const [currencyOptions, setCurrencyOptions] = useState<string[]>([])

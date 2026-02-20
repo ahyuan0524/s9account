@@ -59,10 +59,7 @@ function fmt2(n: number | null | undefined) {
 
 /** ✅ 标准化 key */
 function normKey(v: any) {
-  return String(v ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, " ");
+  return String(v ?? "").trim().toUpperCase().replace(/\s+/g, " ");
 }
 
 /** ✅ 乘除规则（M=乘, D=除） */
@@ -100,13 +97,10 @@ function pickRowValue(row: any): string {
 export default function OrdersPage() {
   const router = useRouter();
 
-  // ✅ 注意：你的 createSupabaseBrowser 可能返回 null，所以这里不写 "!"
+  // ✅ supabase 可能为 null（SSR / env 未配）
   const supabase = useMemo(() => createSupabaseBrowser(), []);
 
-  /**
-   * ✅ 关键修复：Handsontable 的 ref 类型在不同版本会对不上
-   * 直接用 any，避免 Vercel build 因 TS 类型报错失败
-   */
+  // ✅ Handsontable 类型在不同版本会炸，直接 any
   const hotRef = useRef<any>(null);
 
   const [prosyList, setProsyList] = useState<string[]>([]);
@@ -162,13 +156,13 @@ export default function OrdersPage() {
       (m.data ?? []).forEach((r: any) => {
         const key = normKey(r.currency);
         if (!key) return;
-
         map[key] = {
           currency: key,
           rm_method: (normKey(r.rm_method) as Method) || "",
           u_method: (normKey(r.u_method) as Method) || "",
         };
       });
+
       setItemMethods(map);
     }
 
@@ -201,7 +195,6 @@ export default function OrdersPage() {
 
         const data = await res.json();
         const usdt = Number(data?.usdt);
-
         if (!Number.isFinite(usdt)) throw new Error("返回数据没有 usdt");
 
         if (!alive) return;
@@ -220,7 +213,7 @@ export default function OrdersPage() {
   }, [walletAddr]);
 
   // =========================
-  // ✅ 计算列：myr/usdt（按 item_methods 自动乘除）
+  // 计算列：myr/usdt（按 item_methods 自动乘除）
   // =========================
   function recomputeAll(next: GridRow[]): GridRow[] {
     return next.map((r) => {
@@ -313,9 +306,6 @@ export default function OrdersPage() {
     setRows(recomputeAll(next));
   }
 
-  // =========================
-  // Handsontable columns
-  // =========================
   const columns = useMemo(() => {
     const strictAutocomplete = (source: string[]) => ({
       type: "autocomplete" as const,
@@ -329,39 +319,15 @@ export default function OrdersPage() {
 
     const applyNegative = (td: HTMLElement, v: any) => {
       const n = toNumber(v);
-      if (n !== null && n < 0) {
-        td.classList.add(styles.negative);
-        td.classList.add("neg");
-      } else {
-        td.classList.remove(styles.negative);
-        td.classList.remove("neg");
-      }
+      if (n !== null && n < 0) td.classList.add(styles.negative);
+      else td.classList.remove(styles.negative);
     };
 
     return [
-      {
-        data: "date",
-        type: "date",
-        dateFormat: "YYYY-MM-DD",
-        correctFormat: true,
-        allowInvalid: false,
-        className: `${styles.cell} ${styles.center}`,
-      },
-      {
-        data: "prosy",
-        ...strictAutocomplete(prosyList),
-        className: `${styles.cell} ${styles.center} ${styles.boldInput}`,
-      },
-      {
-        data: "currency",
-        ...strictAutocomplete(currencyList),
-        className: `${styles.cell} ${styles.center} ${styles.boldInput}`,
-      },
-      {
-        data: "type",
-        ...strictAutocomplete(typeList),
-        className: `${styles.cell} ${styles.center} ${styles.boldInput}`,
-      },
+      { data: "date", type: "date", dateFormat: "YYYY-MM-DD", correctFormat: true, allowInvalid: false, className: `${styles.cell} ${styles.center}` },
+      { data: "prosy", ...strictAutocomplete(prosyList), className: `${styles.cell} ${styles.center} ${styles.boldInput}` },
+      { data: "currency", ...strictAutocomplete(currencyList), className: `${styles.cell} ${styles.center} ${styles.boldInput}` },
+      { data: "type", ...strictAutocomplete(typeList), className: `${styles.cell} ${styles.center} ${styles.boldInput}` },
       {
         data: "amount",
         type: "numeric",
@@ -372,12 +338,7 @@ export default function OrdersPage() {
           applyNegative(td, value);
         },
       },
-      {
-        data: "rate",
-        type: "numeric",
-        numericFormat: { pattern: "0,0.000" },
-        className: `${styles.cell}`,
-      },
+      { data: "rate", type: "numeric", numericFormat: { pattern: "0,0.000" }, className: `${styles.cell}` },
       {
         data: "myr",
         readOnly: true,
@@ -405,16 +366,12 @@ export default function OrdersPage() {
     ];
   }, [prosyList, currencyList, typeList]);
 
-  const colHeaders = useMemo(
-    () => ["日期", "Prosy", "货币", "类型", "金额（上正下负）", "汇率（可空）", "MYR（RM才算）", "USDT（U才算）"],
-    []
-  );
+  const colHeaders = useMemo(() => ["日期", "Prosy", "货币", "类型", "金额（上正下负）", "汇率（可空）", "MYR（RM才算）", "USDT（U才算）"], []);
 
   const totals = useMemo(() => {
     let totalMYR = 0;
     let todayMYR = 0;
     let totalUSDT = 0;
-
     const td = todayISO();
 
     for (const r of rows) {
@@ -422,9 +379,7 @@ export default function OrdersPage() {
         totalMYR += r.myr;
         if (r.date === td) todayMYR += r.myr;
       }
-      if (typeof r.usdt === "number" && Number.isFinite(r.usdt)) {
-        totalUSDT += r.usdt;
-      }
+      if (typeof r.usdt === "number" && Number.isFinite(r.usdt)) totalUSDT += r.usdt;
     }
     return { totalMYR, todayMYR, totalUSDT };
   }, [rows]);
@@ -453,7 +408,6 @@ export default function OrdersPage() {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
 
-      // ✅ 关键修复：hotInstance 运行时存在，但 TS 类型不认 -> 用 any
       const hot = (hotRef.current as any)?.hotInstance as Handsontable | undefined;
       if (!hot) return;
 
@@ -465,12 +419,9 @@ export default function OrdersPage() {
     }
   }
 
-  /**
-   * ✅ 保存：避免 prosy null（transactions 表 prosy NOT NULL）
-   * ✅ 同时避免 “空行也插入”
-   */
   async function onSave() {
     if (saving) return;
+
     if (!supabase) {
       alert("Supabase 未初始化（请确认 NEXT_PUBLIC_SUPABASE_URL / ANON_KEY 已配置）");
       return;
@@ -484,7 +435,7 @@ export default function OrdersPage() {
           const date = (r.date || "").trim();
           const prosy = (r.prosy || "").trim();
           const currency = (r.currency || "").trim();
-          const type = normKey(r.type); // RM / U
+          const type = normKey(r.type);
           const amount = toNumber(r.amount);
           const rate = toNumber(r.rate);
 
