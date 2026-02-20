@@ -105,7 +105,7 @@ export default function OrdersPage() {
    * 让 TS 明确：这里一定会拿到 client
    * 如果你的 createSupabaseBrowser() 真的可能返回 null，请把 createSupabaseBrowser 修到永远返回 client。
    */
-  const supabase = useMemo(() => createSupabaseBrowser()!, []);
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
   const hotRef = useRef<HotTableClass | null>(null);
 
   const [prosyList, setProsyList] = useState<string[]>([]);
