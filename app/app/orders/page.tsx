@@ -450,16 +450,20 @@ export default function OrdersPage() {
   }
 
   function beforeKeyDown(e: any) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      const hot = hotRef.current?.hotInstance;
-      if (!hot) return;
-      const sel = hot.getSelectedLast();
-      const r = sel ? sel[0] : rows.length - 1;
-      const top = r % 2 === 0 ? r : r - 1;
-      addPair(top + 1);
-    }
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    e.preventDefault();
+
+    // 🔥 关键修复：类型强制转换
+    const hot = (hotRef.current as any)?.hotInstance;
+    if (!hot) return;
+
+    const sel = hot.getSelectedLast();
+    const r = sel ? sel[0] : rows.length - 1;
+    const top = r % 2 === 0 ? r : r - 1;
+
+    addPair(top + 1);
   }
+}
 
   /**
    * ✅ 保存：避免 prosy null（transactions 表 prosy NOT NULL）
