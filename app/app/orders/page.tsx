@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { HotTable, type HotTableClass } from "@handsontable/react"
+import { HotTable } from "@handsontable/react";
 import Handsontable from "handsontable";
 import { registerAllModules } from "handsontable/registry";
 import "handsontable/dist/handsontable.full.min.css";
@@ -100,13 +100,14 @@ function pickRowValue(row: any): string {
 export default function OrdersPage() {
   const router = useRouter();
 
-  /**
-   * ✅ 关键修复：Vercel build 报 “supabase possibly null”
-   * 让 TS 明确：这里一定会拿到 client
-   * 如果你的 createSupabaseBrowser() 真的可能返回 null，请把 createSupabaseBrowser 修到永远返回 client。
-   */
+  // ✅ 注意：你的 createSupabaseBrowser 可能返回 null，所以这里不写 "!"
   const supabase = useMemo(() => createSupabaseBrowser(), []);
-  const hotRef = useRef<HotTableClass | null>(null);
+
+  /**
+   * ✅ 关键修复：Handsontable 的 ref 类型在不同版本会对不上
+   * 直接用 any，避免 Vercel build 因 TS 类型报错失败
+   */
+  const hotRef = useRef<any>(null);
 
   const [prosyList, setProsyList] = useState<string[]>([]);
   const [currencyList, setCurrencyList] = useState<string[]>([]);
@@ -134,7 +135,6 @@ export default function OrdersPage() {
     let alive = true;
 
     async function loadSettings() {
-      // ✅ 保险（就算你上面用了 !，这里也不会坏）
       if (!supabase) return;
 
       const p = await supabase.from("prosy_list").select("*").order("id", { ascending: true });
@@ -450,19 +450,20 @@ export default function OrdersPage() {
   }
 
   function beforeKeyDown(e: any) {
-  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-    e.preventDefault();
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
 
-    const hot = hotRef.current?.hotInstance;
-    if (!hot) return;
+      // ✅ 关键修复：hotInstance 运行时存在，但 TS 类型不认 -> 用 any
+      const hot = (hotRef.current as any)?.hotInstance as Handsontable | undefined;
+      if (!hot) return;
 
-    const sel = hot.getSelectedLast();
-    const r = sel ? sel[0] : rows.length - 1;
-    const top = r % 2 === 0 ? r : r - 1;
+      const sel = hot.getSelectedLast();
+      const r = sel ? sel[0] : rows.length - 1;
+      const top = r % 2 === 0 ? r : r - 1;
 
-    addPair(top + 1);
+      addPair(top + 1);
+    }
   }
-}
 
   /**
    * ✅ 保存：避免 prosy null（transactions 表 prosy NOT NULL）
@@ -488,7 +489,7 @@ export default function OrdersPage() {
           const rate = toNumber(r.rate);
 
           return {
-            __idx: idx + 1, // 用于报错定位第几行
+            __idx: idx + 1,
             date,
             prosy,
             currency,
@@ -515,7 +516,6 @@ export default function OrdersPage() {
       const u = await supabase.auth.getUser();
       const userId = u.data.user?.id ?? null;
 
-      // ✅ 先按你现有表结构插入（prosy NOT NULL）
       const insertRows = payload.map((x) => ({
         user_id: userId,
         date: x.date,
